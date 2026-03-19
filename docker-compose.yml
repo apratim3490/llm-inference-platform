@@ -1,0 +1,72 @@
+# LLM Inference Platform - Docker Compose
+#
+# Usage:
+#   docker compose up -d      # Start all services
+#   docker compose logs -f    # Tail logs
+#   docker compose down       # Stop everything
+#
+# Built incrementally:
+#   Phase 1: vllm
+#   Phase 2: + redis
+#   Phase 4: + prometheus, grafana
+#   Phase 6: + nginx
+#   Phase 7: + cloudflared
+
+version: "3.8"
+
+services:
+  # ===================
+  # Phase 1: Model Serving
+  # ===================
+
+  # TODO: vllm service
+  # - Image: vllm/vllm-openai:latest
+  # - GPU: RTX 3090
+  # - Model: Mistral 7B Instruct v0.3 (GPTQ 4-bit)
+  # - Port: 8001
+
+  # ===================
+  # Phase 2: State Store
+  # ===================
+
+  # TODO: redis service
+  # - Image: redis:7-alpine
+  # - Port: 6379
+  # - Persistence: AOF
+
+  # ===================
+  # Phase 4: Observability
+  # ===================
+
+  # TODO: prometheus service
+  # - Image: prom/prometheus:latest
+  # - Port: 9090
+  # - Config: config/prometheus/prometheus.yml
+
+  # TODO: grafana service
+  # - Image: grafana/grafana:latest
+  # - Port: 3000
+  # - Provisioning: config/grafana/
+
+  # ===================
+  # Phase 6: Reverse Proxy
+  # ===================
+
+  # TODO: nginx service
+  # - Image: nginx:alpine
+  # - Port: 443 → 8000
+  # - Config: config/nginx/nginx.conf
+
+  # ===================
+  # Phase 7: Internet Exposure
+  # ===================
+
+  # TODO: cloudflared service
+  # - Image: cloudflare/cloudflared:latest
+  # - Tunnel to nginx
+
+volumes:
+  model-cache:
+  redis-data:
+  grafana-data:
+  prometheus-data:

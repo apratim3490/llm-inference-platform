@@ -1,0 +1,26 @@
+# Development API Keys
+# These are loaded into Redis with scripts/seed_redis.py
+# In production, keys are generated with scripts/generate_api_key.py
+
+# WARNING: These are development keys only. Never use in production.
+
+keys:
+  - name: "admin-dev"
+    key: "sk-admin-dev-000000000000000000000000"
+    tier: "admin"
+    is_active: true
+
+  - name: "pro-dev"
+    key: "sk-pro-dev-0000000000000000000000000"
+    tier: "pro"
+    is_active: true
+
+  - name: "free-dev"
+    key: "sk-free-dev-000000000000000000000000"
+    tier: "free"
+    is_active: true
+
+  - name: "disabled-dev"
+    key: "sk-disabled-dev-0000000000000000000"
+    tier: "free"
+    is_active: false
