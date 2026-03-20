@@ -9,18 +9,20 @@ Phase 2+: Redis URL, rate limit values, safety settings.
 """
 
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings
 
-class Settings(BaseSettings):
 
+class Settings(BaseSettings):
     vllm_base_url: str = "http://localhost:8001"
     vllm_model_name: str = "mistralai/Mistral-7B-Instruct-v0.3"
     vllm_timeout_seconds: float = 90.0
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     api_env: str = "DEV"
+    version: str = "0.1.0"
+    completion_url: str = "/v1/chat/completions"
     debug: bool = False
-
     model_config = {
           "env_file": ".env",
           "env_file_encoding": "utf-8",

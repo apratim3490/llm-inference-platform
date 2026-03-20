@@ -13,7 +13,7 @@ over-limit requests get 429, and every request's token usage is recorded.
 - Redis Lua scripts for atomic operations
 - Token counting with tiktoken
 - Per-key usage accumulation
-- FastAPI middleware pattern
+- FastAPI `Depends()` for auth and rate limiting (NOT middleware)
 
 ## Concept Docs to Read First
 
@@ -21,11 +21,24 @@ over-limit requests get 429, and every request's token usage is recorded.
 - [03-rate-limiting.md](../concepts/03-rate-limiting.md)
 - [07-usage-tracking.md](../concepts/07-usage-tracking.md)
 
+## Clean Approach Notes
+
+- **Auth and rate limiting use `Depends()`, NOT middleware.** Dependencies only run
+  on routes that declare them — no fragile skip-lists for `/health`, `/docs`, etc.
+  `RequestIDMiddleware` is the exception: it genuinely runs on every request.
+- **Redis connection pool in lifespan**, not per-request connections. Add to
+  `app.state.redis` alongside the httpx client.
+- **Token bucket MUST use a Redis Lua script** for atomicity. Never do
+  check-then-decrement in two separate calls — that's a race condition.
+- **Auth dependency chains into rate limiter** — `require_auth` returns `APIKey`,
+  `enforce_rate_limit` depends on `require_auth` so it gets the key automatically.
+
 ## Steps
 
-### Step 1: Add Redis to Docker Compose
+### Step 1: Add Redis to Docker Compose + Lifespan
 
-Add Redis 7 service. Redis will back rate limiting, key storage, and usage counters.
+Add Redis 7 service. Add `redis.asyncio.Redis` to lifespan → `app.state.redis`.
+Create `get_redis()` dependency in `src/dependencies.py`.
 
 ### Step 2: API Key Data Model
 
@@ -33,17 +46,37 @@ Add Redis 7 service. Redis will back rate limiting, key storage, and usage count
 
 Define the APIKey frozen dataclass with tier system (free/pro/admin).
 
-### Step 3: Authentication Middleware
+### Step 3: Authentication as Dependency
 
-**File**: `src/middleware/auth.py`
+**File**: `src/dependencies.py`
 
-Extract Bearer token → SHA-256 hash → Redis lookup → attach to request state.
+Clean pattern — a dependency function, not middleware:
+```python
+async def require_auth(
+    request: Request,
+    redis: Redis = Depends(get_redis),
+) -> APIKey:
+    # Extract Bearer token, SHA-256 hash, Redis lookup
+    # Raise HTTPException(401) if invalid
+    # Return APIKey on success
+```
 
-### Step 4: Token Bucket Rate Limiter
+Endpoints declare: `api_key: APIKey = Depends(require_auth)`
 
-**File**: `src/middleware/rate_limiter.py`
+### Step 4: Token Bucket Rate Limiter as Dependency
 
-Redis Lua script for atomic check-and-decrement. Two buckets: RPM and TPM.
+**File**: `src/services/rate_limiter.py`
+
+Clean pattern — chains from auth dependency:
+```python
+async def enforce_rate_limit(
+    api_key: APIKey = Depends(require_auth),
+    redis: Redis = Depends(get_redis),
+) -> APIKey:
+    # Redis Lua script for atomic check-and-decrement (RPM + TPM)
+    # Raise HTTPException(429) with Retry-After header if exceeded
+    # Return api_key (pass-through for chaining)
+```
 
 ### Step 5: Token Counter
 
@@ -62,6 +95,7 @@ Record per-request usage, maintain daily totals in Redis hashes.
 **File**: `src/middleware/request_id.py`
 
 UUID per request, X-Request-ID header, attached to all logs.
+This IS appropriate as middleware — it genuinely runs on every request.
 
 ### Step 8: Key Generation Script
 
@@ -93,11 +127,10 @@ for i in $(seq 1 15); do curl -H "Authorization: Bearer sk-test-free" ...; done
 
 ```
 src/
+├── dependencies.py      ← Auth + rate limit dependencies (updated)
 ├── middleware/
 │   ├── __init__.py
-│   ├── request_id.py    ← UUID per request
-│   ├── auth.py          ← API key validation
-│   └── rate_limiter.py  ← Token bucket (Redis Lua)
+│   └── request_id.py    ← UUID per request (only true middleware)
 ├── services/
 │   └── usage_tracker.py ← Per-key token counting
 ├── models/

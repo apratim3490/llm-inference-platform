@@ -18,21 +18,45 @@ blocked before reaching the GPU (input) and before reaching the user (output).
 
 - [08-safety-layer.md](../concepts/08-safety-layer.md)
 
+## Clean Approach Notes
+
+- **Safety as a `Depends()` dependency**, not middleware. It should only run on
+  chat endpoints, not `/health` or `/metrics`.
+- **Load blocklist patterns at startup** (lifespan or `lru_cache`), not per-request.
+  Reading YAML on every request is wasteful.
+- **Skip ML classifier** unless you want the learning exercise. Keyword/regex + PII
+  detection covers 90% of cases with zero latency overhead.
+- **Custom `SafetyError` exception** handled by global exception handler in `main.py`.
+
 ## Steps
 
 ### Step 1: Safety Filter Architecture
 **File**: `src/services/safety.py`
 
 SafetyFilter class with `check_input()` and `check_output()` methods.
+Load patterns once at startup via `lru_cache` or lifespan.
 
 ### Step 2: Keyword + Regex Filter
 Configurable blocklist from YAML. Categories: violence, PII, prompt injection.
 
-### Step 3: Optional ML Classifier
-CPU-based toxic-bert integration. Disabled by default, enabled via config.
+### Step 3: Safety as Dependency
+**File**: `src/dependencies.py`
 
-### Step 4: Pipeline Integration
-Wire into chat endpoint: input check before queue, output check during/after generation.
+Clean pattern:
+```python
+async def check_safety(
+    body: ChatCompletionRequest,
+    safety: SafetyFilter = Depends(get_safety_filter),
+) -> ChatCompletionRequest:
+    result = safety.check_input(body.messages)
+    if not result.safe:
+        raise SafetyError(result.category, result.reason)
+    return body
+```
+
+### Step 4: Optional ML Classifier
+CPU-based toxic-bert integration. Disabled by default, enabled via config.
+(Optional learning exercise — not required for a clean system.)
 
 ### Step 5: Safety Metrics
 Add Prometheus counters for filter triggers by category and direction.

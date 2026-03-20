@@ -19,22 +19,48 @@ SSL termination via nginx, graceful shutdown, and proper error handling.
 - [09-circuit-breaker.md](../concepts/09-circuit-breaker.md)
 - [11-health-checks.md](../concepts/11-health-checks.md)
 
+## Clean Approach Notes
+
+- **Circuit breaker wraps InferenceService**, doesn't modify it. Use the wrapper
+  pattern to keep InferenceService clean and testable on its own.
+- **Global error handler already exists** from Phase 1 (`main.py` exception handlers).
+  Phase 6 expands it to catch all unhandled exceptions → 500 with no stack traces.
+- **`/health` stays simple** (always 200). All dependency-checking logic goes in `/ready`.
+
 ## Steps
 
 ### Step 1: Health Checks
 **File**: `src/observability/health.py`, `src/api/v1/health.py`
 
-/health (liveness) and /ready (readiness with dependency checks).
+/health (liveness — always 200) and /ready (readiness with dependency checks).
 
-### Step 2: Circuit Breaker
+### Step 2: Circuit Breaker (Wrapper Pattern)
 **File**: `src/services/circuit_breaker.py`
 
-Three-state circuit breaker: CLOSED → OPEN → HALF_OPEN. Threshold-based triggering.
+Clean pattern — wraps InferenceService, doesn't modify it:
+```python
+class CircuitBreakerService:
+    def __init__(self, service: InferenceService, breaker: CircuitBreaker):
+        self._service = service
+        self._breaker = breaker
+
+    async def complete(self, request):
+        if self._breaker.is_open:
+            raise InferenceError("Service unavailable", 503)
+        try:
+            result = await self._service.complete(request)
+            self._breaker.record_success()
+            return result
+        except InferenceError:
+            self._breaker.record_failure()
+            raise
+```
 
 ### Step 3: Graceful Shutdown
 **File**: `src/main.py`
 
 On SIGTERM: stop accepting, drain queue, close connections, exit.
+This extends the existing lifespan shutdown logic.
 
 ### Step 4: nginx Reverse Proxy
 **Files**: `docker-compose.yml`, `config/nginx/nginx.conf`
@@ -44,10 +70,17 @@ SSL termination, request buffering, connection limits.
 ### Step 5: Timeout Enforcement
 Layered timeouts: global (120s) > vLLM call (90s) > queue wait (30s).
 
-### Step 6: Global Error Handler
-**File**: `src/middleware/error_handler.py`
+### Step 6: Expand Global Error Handler
+**File**: `src/main.py`
 
-Catch all exceptions → clean JSON errors. Never leak stack traces.
+Extend the exception handlers from Phase 1 to catch all unhandled exceptions:
+```python
+@app.exception_handler(Exception)
+async def unhandled_error(request, exc):
+    logger.error("unhandled_exception", exc_info=exc)
+    return JSONResponse(status_code=500, content={"error": "Internal server error"})
+```
+Never leak stack traces to clients.
 
 ### Step 7: Tests
 Circuit breaker state transitions, health responses with backends down/up.

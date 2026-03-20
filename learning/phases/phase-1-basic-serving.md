@@ -85,7 +85,28 @@ Key concepts:
 Key concepts:
 - Pydantic models matching OpenAI's request/response format
 - FastAPI route with JSON body parsing
-- Dependency injection for services
+- **`Depends()` for injecting InferenceService** (not created inline)
+- **No try/except in endpoints** — global exception handler in `main.py`
+
+Clean pattern:
+```python
+# src/dependencies.py — define the dependency
+async def get_inference_service(request: Request) -> InferenceService:
+    return InferenceService(request.app.state.http_client)
+
+# src/api/v1/chat.py — endpoint is clean, no error handling
+@router.post("/chat/completions", response_model=ChatCompletionResponse)
+async def create_chat_completion(
+    body: ChatCompletionRequest,
+    service: InferenceService = Depends(get_inference_service),
+):
+    return await service.complete(body)
+
+# src/main.py — global handler catches InferenceError everywhere
+@app.exception_handler(InferenceError)
+async def inference_error_handler(request, exc):
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.message})
+```
 
 ### Step 5: Inference Service (Proxy to vLLM)
 
@@ -96,12 +117,25 @@ Key concepts:
 - Connection pooling
 - Timeout configuration
 - Error mapping (vLLM errors → user-friendly errors)
+- Service receives client via constructor (dependency injection)
 
-### Step 6: Models Endpoint
+### Step 6: Router + Models + Health Endpoints
 
-**File**: `src/api/v1/models.py`
+**Files**: `src/api/router.py`, `src/api/v1/models.py`, `src/api/v1/health.py`
 
-List available models by querying vLLM.
+Key concepts:
+- **Router is pure wiring** — no classes, no logic, just `include_router()` calls
+- Models endpoint returns empty list if vLLM unreachable (graceful degradation)
+- Health endpoint always returns 200 (liveness only, no dependency checks)
+
+Clean pattern for router:
+```python
+# src/api/router.py — just wiring, nothing else
+api_router = APIRouter()
+api_router.include_router(chat_router, prefix="/v1", tags=["chat"])
+api_router.include_router(models_router, prefix="/v1", tags=["models"])
+api_router.include_router(health_router, tags=["health"])
+```
 
 ### Step 7: Tests
 

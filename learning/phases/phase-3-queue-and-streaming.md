@@ -20,32 +20,51 @@ one-by-one in real-time.
 - [04-request-queuing.md](../concepts/04-request-queuing.md)
 - [06-streaming-sse.md](../concepts/06-streaming-sse.md)
 
+## Clean Approach Notes
+
+- **Semaphore first, queue second.** A single RTX 3090 handles ~1 inference at a
+  time. Start with `asyncio.Semaphore(1)` for concurrency control (simple), then
+  add the Redis priority queue as a learning exercise on top.
+- **Streaming uses `async def` generators**, not callback patterns. The generator
+  itself checks for client disconnect — no separate monitoring task.
+- **`StreamingResponse`** wraps the generator directly. Clean and composable.
+
 ## Steps
 
-### Step 1: Priority Request Queue
+### Step 1: Concurrency Semaphore
+**File**: `src/services/inference.py`
+
+Add `asyncio.Semaphore(1)` to limit concurrent vLLM calls. Simple foundation
+before adding the full queue.
+
+### Step 2: Priority Request Queue
 **File**: `src/services/queue.py`
 
 Redis sorted set with score = (priority × 1e12) + timestamp. Bounded capacity (100).
 
-### Step 2: Queue Worker / Dispatcher
+### Step 3: Queue Worker / Dispatcher
 **File**: `src/services/queue.py` (additional logic)
 
-Background asyncio task: dequeue by priority, dispatch to vLLM, semaphore for concurrency.
+Background asyncio task: dequeue by priority, dispatch to vLLM.
 
-### Step 3: SSE Streaming
+### Step 4: SSE Streaming
 **Files**: `src/utils/sse.py`, `src/services/inference.py`, `src/api/v1/schemas/streaming.py`
 
-Proxy vLLM's streaming output as SSE events in OpenAI format.
-
-### Step 4: Client Disconnect Detection
-**File**: `src/utils/sse.py`
-
-Check `request.is_disconnected()` during streaming to stop wasting GPU.
+Clean pattern — async generator with disconnect detection built in:
+```python
+async def stream_completion(request, client, payload):
+    async with client.stream("POST", url, json=payload) as response:
+        async for line in response.aiter_lines():
+            if await request.is_disconnected():
+                break
+            yield format_sse(line)
+    yield "data: [DONE]\n\n"
+```
 
 ### Step 5: Update Chat Endpoint
 **File**: `src/api/v1/chat.py`
 
-Branch on `stream: true` → StreamingResponse vs full JSON response.
+Branch on `stream: true` → `StreamingResponse(generator)` vs JSON response.
 
 ### Step 6: Tests
 

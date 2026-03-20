@@ -11,3 +11,19 @@ Collects all versioned API routers and mounts them.
 #
 #   Hint: router.include_router(other_router, prefix="/v1", tags=["chat"])
 #   The prefix means /chat/completions becomes /v1/chat/completions
+
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+
+from src.services.inference import InferenceError, InferenceService
+
+class ApiRouter(APIRouter):
+
+    def __init__(self, inference_service: InferenceService):
+        self._inference_service = inference_service
+
+    
+
+
+
+

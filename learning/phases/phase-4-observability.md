@@ -19,6 +19,15 @@ in real-time through dashboards.
 
 - [10-observability.md](../concepts/10-observability.md)
 
+## Clean Approach Notes
+
+- **Metrics defined once, imported everywhere.** Never create metrics inline in
+  service code. One `metrics.py` file is the single source of truth.
+- **`structlog` with bound loggers**, not Python's built-in `logging`. Bind
+  `request_id` once per request, then every subsequent log call includes it.
+- **Logging middleware IS appropriate as middleware** — unlike auth, it genuinely
+  runs on every request. Use `time.perf_counter()` for latency, not `time.time()`.
+
 ## Steps
 
 ### Step 1: Define Prometheus Metrics
@@ -27,19 +36,28 @@ in real-time through dashboards.
 All metric definitions in one place: request duration, TTFT, token counts, queue depth, etc.
 
 ### Step 2: Instrument All Components
-**Files**: All middleware and service files
+**Files**: All service files
 
-Add timing and counting instrumentation to auth, rate limiter, inference, queue, safety.
+Add timing and counting instrumentation to inference, queue, safety.
+Clean pattern: services call `metric.observe()` / `metric.inc()` directly.
 
 ### Step 3: Structured Logging
 **File**: `src/observability/logging_config.py`
 
-Configure structlog with JSON output, request_id context, masked API keys.
+Configure structlog with JSON output (production) or pretty-print (development).
+Clean pattern — bound loggers:
+```python
+logger = structlog.get_logger()
+log = logger.bind(request_id=request_id, path=path)
+log.info("request_started")
+log.info("request_completed", status=200, latency_ms=45)
+```
 
 ### Step 4: Logging Middleware
 **File**: `src/middleware/logging_middleware.py`
 
 Log every request start and completion with method, path, status, latency, tokens.
+Use `time.perf_counter()` for accurate latency measurement.
 
 ### Step 5: Prometheus + Grafana in Docker Compose
 **Files**: `docker-compose.yml`, `config/prometheus/prometheus.yml`
