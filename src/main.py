@@ -10,10 +10,12 @@ Creates and configures the FastAPI app with:
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from src.api.router import api_router
 from src.config import get_settings
+from src.services.inference import InferenceError
 
 
 @asynccontextmanager
@@ -34,6 +36,11 @@ def create_app():
     return app
 
 app = create_app()
+
+@app.exception_handler(InferenceError)
+async def handle_inference_error(request: Request, exception: InferenceError):
+    return JSONResponse(status_code = exception.status_code,
+                        content = {"error": exception.message})
 
 
 

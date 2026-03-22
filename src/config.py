@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     api_env: str = "DEV"
     version: str = "0.1.0"
     completion_url: str = "/v1/chat/completions"
+    list_models_url: str = "/v1/models"
     debug: bool = False
     model_config = {
           "env_file": ".env",

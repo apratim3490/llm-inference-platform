@@ -6,6 +6,7 @@ This is the bridge between the API gateway and the GPU.
 """
 
 import httpx
+from fastapi.responses import JSONResponse
 
 from src.api.v1.schemas.chat import ChatCompletionRequest, ChatCompletionResponse
 from src.config import get_settings
@@ -38,6 +39,19 @@ class InferenceService:
         data = response.json()
         return ChatCompletionResponse(**data)
 
+    async def list_models(self) -> JSONResponse:
+        try:
+            response = await self._client.get(self._settings.list_models_url)
+        except httpx.TimeoutException:
+            raise InferenceError("vLLM timed out", 504)
+        except httpx.ConnectError:
+            raise InferenceError("vLLM Unavailable", 503)
+
+        if response.status_code != 200:
+            raise InferenceError(f"vLLM returned {response.status_code}", 502)
+
+        data = response.json()
+        return JSONResponse(content= data)
 
 
 

@@ -8,5 +8,13 @@ Phase 2+: Dependencies will be defined here for auth, rate limiting, etc.
 """
 
 # TODO: Phase 2 - Redis client dependency
-# TODO: Phase 2 - InferenceService dependency
 # TODO: Phase 2 - Auth dependency (current API key)
+
+from fastapi import Request
+
+from src.services.inference import InferenceService
+
+
+def get_inference_service(request: Request):
+    return InferenceService(request.app.state.http_client)
+

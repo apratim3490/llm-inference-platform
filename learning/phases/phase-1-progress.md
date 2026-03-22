@@ -12,12 +12,12 @@
 | 2 | App factory + lifespan | DONE | `src/main.py` |
 | 3 | Pydantic schemas (OpenAI format) | DONE | `src/api/v1/schemas/chat.py`, `common.py` |
 | 4 | Inference service (vLLM proxy) | DONE | `src/services/inference.py` |
-| 5 | Chat completions endpoint | NEEDS CLEANUP | `src/api/v1/chat.py` |
-| 5a | Global exception handler | TODO | `src/main.py` |
-| 5b | Dependency injection for InferenceService | TODO | `src/dependencies.py` |
-| 6 | Router (plain wiring) | NEEDS CLEANUP | `src/api/router.py` |
-| 7 | Health + models endpoints | TODO | `src/api/v1/health.py`, `src/api/v1/models.py` |
-| 8 | Docker Compose (vLLM) | TODO | `docker-compose.yml` |
+| 5a | Global exception handler | DONE | `src/main.py` |
+| 5b | Dependency injection for InferenceService | DONE | `src/dependencies.py` |
+| 5 | Chat completions endpoint (cleaned up) | DONE | `src/api/v1/chat.py` |
+| 6 | Router (plain wiring) | DONE | `src/api/router.py` |
+| 7 | Health + models endpoints | DONE | `src/api/v1/health.py`, `src/api/v1/models.py` |
+| 8 | Docker Compose (vLLM) | IN PROGRESS | `docker-compose.yml` |
 | 9 | Tests | TODO | `tests/conftest.py`, `tests/integration/` |
 
 ## Clean Patterns (applied throughout)
@@ -30,8 +30,8 @@
 ## Recommended Build Order
 
 1. config (DONE) → 2. app factory (DONE) → 3. schemas (DONE) → 4. inference (DONE)
-→ 5a. global exception handler → 5b. dependency injection → 5. clean up chat endpoint
-→ 6. clean up router → 7. health + models endpoints → 8. docker → 9. tests
+→ 5a. exception handler (DONE) → 5b. dependency injection (DONE) → 5. chat cleanup (DONE)
+→ 6. router cleanup (DONE) → 7. health + models (DONE) → 8. docker (IN PROGRESS) → 9. tests
 
 ## Verification Checklist
 
