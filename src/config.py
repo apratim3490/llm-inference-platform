@@ -15,7 +15,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     vllm_base_url: str = "http://localhost:8001"
-    vllm_model_name: str = "mistralai/Mistral-7B-Instruct-v0.3"
+    vllm_model_name: str = "RedHatAI/Mistral-7B-Instruct-v0.3-GPTQ-4bit"
     vllm_timeout_seconds: float = 90.0
     api_host: str = "0.0.0.0"
     api_port: int = 8000

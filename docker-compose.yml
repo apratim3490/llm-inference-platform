@@ -1,9 +1,9 @@
 # LLM Inference Platform - Docker Compose
 #
 # Usage:
-#   docker compose up -d      # Start all services
-#   docker compose logs -f    # Tail logs
-#   docker compose down       # Stop everything
+#   podman compose up -d      # Start all services
+#   podman compose logs -f    # Tail logs
+#   podman compose down       # Stop everything
 #
 # Built incrementally:
 #   Phase 1: vllm
@@ -12,18 +12,25 @@
 #   Phase 6: + nginx
 #   Phase 7: + cloudflared
 
-version: "3.8"
-
 services:
   # ===================
   # Phase 1: Model Serving
   # ===================
 
   # TODO: vllm service
-  # - Image: vllm/vllm-openai:latest
-  # - GPU: RTX 3090
-  # - Model: Mistral 7B Instruct v0.3 (GPTQ 4-bit)
-  # - Port: 8001
+  vllm:
+    image: vllm/vllm-openai:latest
+    ports:
+      - "8001:8000"
+    devices:
+      - nvidia.com/gpu=all
+    command: >
+      --model RedHatAI/Mistral-7B-Instruct-v0.3-GPTQ-4bit
+      --quantization gptq_marlin
+      --max-model-len 4096
+      --gpu-memory-utilization 0.85 
+    volumes:
+      - model-cache:/root/.cache/huggingface
 
   # ===================
   # Phase 2: State Store

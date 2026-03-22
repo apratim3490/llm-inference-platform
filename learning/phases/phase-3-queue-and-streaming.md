@@ -66,9 +66,45 @@ async def stream_completion(request, client, payload):
 
 Branch on `stream: true` → `StreamingResponse(generator)` vs JSON response.
 
-### Step 6: Tests
+### Step 6: Model Upgrade & KV Cache Tuning
+**Files**: `src/config.py`, `docker-compose.yml`
+
+Phase 1 uses Mistral 7B (~14GB VRAM) as a safe default. Now that streaming and
+concurrency are in place, upgrade the model and tune memory tradeoffs — this is
+a real engineering decision that frontier labs face constantly.
+
+**Sub-steps:**
+
+1. **Benchmark 7B baseline** — measure concurrent request capacity, tokens/sec,
+   and VRAM usage with `nvidia-smi` while under load.
+
+2. **Upgrade to 14B quantized** (e.g. `Qwen/Qwen2.5-14B-Instruct-AWQ`, ~15GB).
+   Update `vllm_model_name` in config and `--model` in Docker Compose.
+
+3. **Tune `--max-model-len`** — shorter context = smaller KV cache = more
+   concurrent requests. Try 2048 vs 4096 vs 8192 and measure the tradeoff.
+
+4. **Tune `--gpu-memory-utilization`** — vLLM flag (default 0.9). Lower it to
+   leave headroom, raise it to squeeze more KV cache. Find the sweet spot.
+
+5. **Re-benchmark** — compare concurrent capacity and tokens/sec against the 7B
+   baseline. Document findings.
+
+**The core tradeoff:**
+- Bigger model = better quality, more VRAM for weights, less room for KV cache
+- KV cache size = how many concurrent requests fit in memory
+- Quantization (AWQ/GPTQ) = smaller weights, freeing VRAM for KV cache
+- `--max-model-len` = cap on context length, directly controls KV cache size per request
+
+**VRAM budget (24GB):**
+```
+| Model weights | + KV cache per request × concurrent requests | ≤ 24GB |
+```
+
+### Step 7: Tests
 
 Test queue priority ordering, SSE event format, streaming end-to-end.
+Include a concurrency stress test to validate the model/KV cache tuning.
 
 ## Verification
 
