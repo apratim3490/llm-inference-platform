@@ -10,6 +10,7 @@ Creates and configures the FastAPI app with:
 from contextlib import asynccontextmanager
 
 import httpx
+import redis.asyncio as aioredis
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -23,8 +24,13 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     client = httpx.AsyncClient(base_url=settings.vllm_base_url,
                       timeout=settings.vllm_timeout_seconds)
+    redis_client = aioredis.from_url(url = settings.redis_url, decode_responses = True)
     app.state.http_client = client
+    app.state.redis_client = redis_client
+
     yield
+
+    await redis_client.aclose()
     await client.aclose()
 
 def create_app():

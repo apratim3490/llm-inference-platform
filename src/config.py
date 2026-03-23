@@ -14,6 +14,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    redis_url: str = "redis://localhost:6379"
     vllm_base_url: str = "http://localhost:8001"
     vllm_model_name: str = "RedHatAI/Mistral-7B-Instruct-v0.3-GPTQ-4bit"
     vllm_timeout_seconds: float = 90.0
